@@ -1,0 +1,62 @@
+# Docs for the Azure Web Apps Deploy action: https://github.com/azure/functions-action
+# More GitHub Actions for Azure: https://github.com/Azure/actions
+
+name: Build and deploy Node.js project to Azure Function App - frg2-iot-devices-flow
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AZURE_APP_NAME: 'nmt01-iot-devices-flow'
+  AZURE_APP_PACKAGE_PATH: '.'
+  AZURE_APP_PUBLISH_PROFILE: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
+  NODE_VERSION: '18.x'
+  SLOT: 'Production'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: 'Checkout GitHub Action'
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ env.NODE_VERSION }} Environment
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 'Resolve Project Dependencies Using Npm'
+        shell: pwsh
+        run: |
+          pushd './${{ env.AZURE_APP_PACKAGE_PATH }}'
+          npm install
+          npm run build --if-present
+          npm run test --if-present
+          popd
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v3
+        with:
+          name: node-app
+          path: ${{ env.AZURE_APP_PACKAGE_PATH }}
+
+  deploy:
+    runs-on: windows-latest
+    needs: build
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v3
+        with:
+          name: node-app
+
+      - name: Run Azure Functions deployment
+        uses: Azure/functions-action@v1
+        id: func-app
+        with:
+          app-name: ${{ env.AZURE_APP_NAME }}
+          slot-name: ${{ env.SLOT }}
+          package: ${{ env.AZURE_APP_PACKAGE_PATH }}
+          publish-profile: ${{ env.AZURE_APP_PUBLISH_PROFILE }}
